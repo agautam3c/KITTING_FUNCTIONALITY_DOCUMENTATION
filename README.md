@@ -1,4 +1,4 @@
-# Kitting Functionality - Developer Documentation
+# Kitting Functionality - Backend Developer Documentation
 
 ## Table of Contents
 1. [Overview](#overview)
@@ -6,12 +6,11 @@
 3. [Database Schema](#database-schema)
 4. [API Endpoints](#api-endpoints)
 5. [Sequence Diagrams](#sequence-diagrams)
-6. [Frontend Components](#frontend-components)
-7. [Use Cases](#use-cases)
-8. [Validation Rules](#validation-rules)
-9. [Error Handling](#error-handling)
-10. [Testing](#testing)
-11. [Troubleshooting](#troubleshooting)
+6. [Use Cases](#use-cases)
+7. [Validation Rules](#validation-rules)
+8. [Error Handling](#error-handling)
+9. [Testing](#testing)
+10. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -35,9 +34,9 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
          │                       │                       │
          │                       │                       │
     ┌────▼────┐            ┌─────▼────┐            ┌─────▼────┐
-    │Virtual  │            │Manual    │            │product_  │
-    │Bundling │            │Controller│            │bundles   │
-    │Modal    │            │          │            │          │
+    │API      │            │Manual    │            │shopify_  │
+    │Client   │            │Controller│            │listing_  │
+    │         │            │          │            │container │
     └─────────┘            └──────────┘            └──────────┘
 ```
 
@@ -52,48 +51,14 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
 
 ## Database Schema
 
-### product_bundles Collection
+### shopify_listing_container Collection (Kitting Management)
 
 ```javascript
 {
   "_id": ObjectId,
-  "target": {
-    "source_product_id": String,        // Shopify product ID
-    "container_id": String,             // Shopify container ID
-    "shop_id": String,                  // Target shop ID
-    "marketplace": String,              // Target marketplace (e.g., "shopify")
-    "bundledQty": Number               // Quantity of Shopify product in kit
-  },
-  "row": [                              // Array of Amazon MCF products
-    {
-      "source_product_id": String,      // Amazon product ID
-      "sku": String,                    // Amazon SKU
-      "container_id": String,           // Amazon container ID
-      "title": String,                  // Product title
-      "quantity": Number,               // Quantity in kit
-      "price": Number,                  // Product price
-      "inventory": Number,              // Available inventory
-      "total_quantity_to_show": Number, // Display quantity
-      "total_bb_quantity_to_show": Number // Blank box quantity (if enabled)
-    }
-  ],
-  "source": {
-    "shop_id": String,                  // Source shop ID
-    "marketplace": String               // Source marketplace (e.g., "amazonmcf")
-  },
-  "created_at": Date,
-  "updated_at": Date
-}
-```
-
-### shopify_listing_container Collection (Updated)
-
-```javascript
-{
-  "_id": ObjectId,
-  "source_product_id": String,
-  "sku": String,
-  "title": String,
+  "source_product_id": String,          // Shopify product ID
+  "sku": String,                        // Shopify SKU
+  "title": String,                      // Product title
   "bundled": Boolean,                   // true if product is kitted
   "bundle": [                           // Bundle configuration (if kitted)
     {
@@ -104,19 +69,21 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
     }
   ],
   "linkType": String,                   // "linked", "closematch", null
-  "shop_id": String,
-  "marketplace": String
+  "shop_id": String,                    // Shop ID
+  "marketplace": String,                // Marketplace (e.g., "shopify")
+  "created_at": Date,
+  "updated_at": Date
 }
 ```
 
-### product_container Collection (Updated)
+### product_container Collection (Amazon MCF Products)
 
 ```javascript
 {
   "_id": ObjectId,
-  "source_product_id": String,
-  "sku": String,
-  "title": String,
+  "source_product_id": String,          // Amazon product ID
+  "sku": String,                        // Amazon SKU
+  "title": String,                      // Product title
   "bundle": [                           // Bundle configuration (if part of kit)
     {
       "shopify_product_id": String,     // Shopify product ID
@@ -124,8 +91,14 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
     }
   ],
   "linkType": String,                   // "linked", "closematch", null
-  "shop_id": String,
-  "marketplace": String
+  "shop_id": String,                    // Shop ID
+  "marketplace": String,                // Marketplace (e.g., "amazonmcf")
+  "price": Number,                      // Product price
+  "inventory": Number,                  // Available inventory
+  "total_quantity_to_show": Number,     // Display quantity
+  "total_bb_quantity_to_show": Number,  // Blank box quantity (if enabled)
+  "created_at": Date,
+  "updated_at": Date
 }
 ```
 
@@ -208,6 +181,17 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
 }
 ```
 
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Bundle created successfully",
+  "data": {
+    "bundle_id": "generated_bundle_id"
+  }
+}
+```
+
 ### 3. Delete Bundle
 
 **Endpoint**: `POST /amazonmcf/productlinking/deletebundle`
@@ -225,6 +209,14 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
     "shop_id": "source_shop_id",
     "marketplace": "amazonmcf"
   }
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Bundle deleted successfully"
 }
 ```
 
@@ -255,51 +247,60 @@ The Kitting (Virtual Bundling) functionality allows users to create virtual prod
 }
 ```
 
+### 5. Get Products Available for Kitting
+
+**Endpoint**: `POST /amazonmcf/product/getProducts`
+
+**Request**:
+```json
+{
+  "source": {
+    "shopId": "source_shop_id",
+    "marketplace": "source_marketplace"
+  },
+  "target": {
+    "shopId": "target_shop_id",
+    "marketplace": "target_marketplace"
+  },
+  "count": 50,
+  "activePage": 1,
+  "exclude_linked": true,
+  "data": {
+    "user_id": "user_id"
+  }
+}
+```
+
 ## Sequence Diagrams
 
 ### 1. Create Kit Sequence
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant F as Frontend
+    participant C as Client
     participant B as Backend
     participant D as Database
 
-    U->>F: Click "Manage Bundling"
-    F->>B: GET /getproducts (kitted mode)
-    B->>D: Query product_bundles
+    C->>B: POST /getproducts (kitted mode)
+    B->>D: Query shopify_listing_container (bundled: true)
     D-->>B: Return kitted products
-    B-->>F: Return kitted products list
-    F-->>U: Display kitted products
+    B-->>C: Return kitted products list
 
-    U->>F: Click "Add New Kit"
-    F->>B: GET /getproducts (available for kitting)
+    C->>B: POST /getProducts (exclude_linked: true)
     B->>D: Query products (exclude linked)
     D-->>B: Return available products
-    B-->>F: Return available products
-    F-->>U: Display product selection
+    B-->>C: Return available products
 
-    U->>F: Select Shopify product
-    F->>B: POST /validateexclusivity
-    B->>D: Check product status
+    C->>B: POST /validateexclusivity
+    B->>D: Check product status in both collections
     D-->>B: Return validation result
-    B-->>F: Return validation result
+    B-->>C: Return validation result
 
-    U->>F: Add Amazon products to kit
-    F->>B: POST /validateexclusivity (for each Amazon product)
-    B->>D: Check each product status
-    D-->>B: Return validation results
-    B-->>F: Return validation results
-
-    U->>F: Set quantities and save
-    F->>B: POST /savebundle
-    B->>D: Insert bundle record
-    B->>D: Update shopify_listing_container
-    B->>D: Update product_container
+    C->>B: POST /savebundle
+    B->>D: Update shopify_listing_container (set bundled: true, add bundle array)
+    B->>D: Update product_container (add bundle references)
     D-->>B: Confirm updates
-    B-->>F: Return success response
-    F-->>U: Show success message
+    B-->>C: Return success response
 ```
 
 ### 2. Order Processing with Kits
@@ -312,7 +313,7 @@ sequenceDiagram
     participant A as Amazon MCF
 
     S->>B: Order webhook (contains kitted product)
-    B->>D: Query shopify_listing_container
+    B->>D: Query shopify_listing_container for product
     D-->>B: Return product with bundle config
     B->>D: Query product_container for bundle items
     D-->>B: Return bundle items
@@ -327,96 +328,16 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant F as Frontend
+    participant C as Client
     participant B as Backend
     participant D as Database
 
-    U->>F: Click "Delete" on kit
-    F->>F: Show confirmation modal
-    U->>F: Confirm deletion
-    F->>B: POST /deletebundle
-    B->>D: Delete from product_bundles
-    B->>D: Update shopify_listing_container (set bundled: false)
-    B->>D: Update product_container (remove bundle refs)
+    C->>B: POST /deletebundle
+    B->>D: Update shopify_listing_container (set bundled: false, remove bundle array)
+    B->>D: Update product_container (remove bundle references)
     D-->>B: Confirm updates
-    B-->>F: Return success response
-    F-->>U: Show success message and refresh list
+    B-->>C: Return success response
 ```
-
-## Frontend Components
-
-### 1. VirtualBundling Component
-
-**File**: `app/react_app/src/components/ProductLinking/components/VirtualBundling.tsx`
-
-**Purpose**: Main component for managing kitted products
-
-**Key Features**:
-- Display list of kitted products
-- Search and filter functionality
-- Pagination support
-- Delete kit functionality
-- Open modal for creating new kits
-
-**State Management**:
-```typescript
-interface VirtualBundlingState {
-  bundleModal: boolean;
-  shopifySearch: string;
-  shopifyListing: any[];
-  shopifyLoading: boolean;
-  pagination: {
-    activePage: number;
-    count: string;
-  };
-  totalProducts: number;
-  bundledData: {
-    shopify: any;
-    amazon: any[];
-  };
-  errors: {
-    shopify: boolean;
-    amazon: Record<number, boolean>;
-  };
-}
-```
-
-### 2. VirtualBundlingModal Component
-
-**File**: `app/react_app/src/components/ProductLinking/components/VirtualBundlingModal.tsx`
-
-**Purpose**: Modal for creating and editing kits
-
-**Key Features**:
-- Shopify product selection
-- Amazon MCF product search and selection
-- Quantity management
-- Validation before saving
-- Error handling
-
-**Props Interface**:
-```typescript
-interface VirtualBundlingI {
-  bundledData: any;
-  handleShopifyVirtualBundleChange?: (key: string, value: number) => void;
-  handlePushToBundle?: (value: any) => void;
-  handleRemoveFromBundle?: (id: number) => void;
-  handleAmazonVirtualBundleChange?: (index: number, key: string, value: number) => void;
-  errors?: any;
-}
-```
-
-### 3. ProductExclusivityIndicator Component
-
-**File**: `app/react_app/src/components/ProductLinking/components/ProductExclusivityIndicator.tsx`
-
-**Purpose**: Visual indicator for product exclusivity status
-
-**Features**:
-- Shows if product is linked or kitted
-- Tooltips explaining exclusivity rules
-- Color-coded indicators
 
 ## Use Cases
 
@@ -430,18 +351,17 @@ interface VirtualBundlingI {
 - Products not already linked or kitted
 
 **Steps**:
-1. Navigate to Product Linking → Virtual Bundling
-2. Click "Add New Kit"
-3. Select a Shopify product from the list
-4. Search and select Amazon MCF products
-5. Set quantities for each product
-6. Click "Done" to save the kit
+1. System receives request to create kit
+2. Validate Shopify product eligibility (not linked)
+3. Validate Amazon MCF products eligibility (not linked)
+4. Update shopify_listing_container with bundle configuration
+5. Update product_container with bundle references
+6. Return success response
 
 **Postconditions**:
-- Kit is created and stored in database
-- Shopify product marked as `bundled: true`
+- Shopify product marked as `bundled: true` with bundle array
 - Amazon products updated with bundle references
-- Kit appears in kitted products list
+- Kit configuration stored in database
 
 ### Use Case 2: Process Order with Kit
 
@@ -454,11 +374,12 @@ interface VirtualBundlingI {
 
 **Steps**:
 1. Receive order webhook from Shopify
-2. Identify kitted products in order
-3. Query bundle configuration
-4. Validate inventory for all bundle items
-5. Create Amazon MCF fulfillment order
-6. Update order with bundle processing info
+2. Query shopify_listing_container for kitted product
+3. Extract bundle configuration
+4. Query product_container for all bundle items
+5. Validate inventory for all bundle items
+6. Create Amazon MCF fulfillment order with individual items
+7. Update order with bundle processing details
 
 **Postconditions**:
 - Fulfillment order created in Amazon MCF
@@ -474,61 +395,84 @@ interface VirtualBundlingI {
 - No pending orders with this kit
 
 **Steps**:
-1. Navigate to Virtual Bundling
-2. Find the kit in the list
-3. Click "Delete" button
-4. Confirm deletion in modal
-5. Kit is removed from system
+1. System receives delete kit request
+2. Update shopify_listing_container (set bundled: false, remove bundle array)
+3. Update product_container (remove bundle references)
+4. Return success response
 
 **Postconditions**:
-- Kit removed from product_bundles collection
 - Shopify product marked as `bundled: false`
-- Amazon products updated to remove bundle references
-- Kit no longer appears in list
+- Bundle array removed from shopify_listing_container
+- Bundle references removed from product_container
 
 ## Validation Rules
 
 ### 1. Product Exclusivity
 
-```typescript
+```php
 // A product cannot be both linked and kitted
-if (product.isLinked && product.isKitted) {
-  throw new Error("Product cannot be both linked and kitted");
+private function checkProductExclusivity($productId, $shopId, $marketplace) {
+    $shopifyProduct = $this->getShopifyProduct($productId, $shopId);
+    $amazonProduct = $this->getAmazonProduct($productId, $shopId);
+    
+    if (($shopifyProduct && $shopifyProduct['linkType'] === 'linked') ||
+        ($amazonProduct && $amazonProduct['linkType'] === 'linked')) {
+        return ['can_proceed' => false, 'message' => 'Product is already linked'];
+    }
+    
+    if (($shopifyProduct && $shopifyProduct['bundled'] === true) ||
+        ($amazonProduct && !empty($amazonProduct['bundle']))) {
+        return ['can_proceed' => false, 'message' => 'Product is already kitted'];
+    }
+    
+    return ['can_proceed' => true, 'message' => 'Product is eligible'];
 }
 ```
 
 ### 2. Kit Composition
 
-```typescript
-// Kit must have exactly 1 Shopify product
-if (kit.shopifyProducts.length !== 1) {
-  throw new Error("Kit must contain exactly one Shopify product");
-}
-
-// Kit must have at least 2 Amazon MCF products
-if (kit.amazonProducts.length < 2) {
-  throw new Error("Kit must contain at least two Amazon MCF products");
+```php
+// Kit must have exactly 1 Shopify product and at least 2 Amazon MCF products
+private function validateKitComposition($shopifyProduct, $amazonProducts) {
+    if (empty($shopifyProduct)) {
+        throw new Exception("Kit must contain exactly one Shopify product");
+    }
+    
+    if (count($amazonProducts) < 2) {
+        throw new Exception("Kit must contain at least two Amazon MCF products");
+    }
+    
+    return true;
 }
 ```
 
 ### 3. Quantity Validation
 
-```typescript
+```php
 // All quantities must be positive integers
-kit.amazonProducts.forEach(product => {
-  if (!Number.isInteger(product.quantity) || product.quantity <= 0) {
-    throw new Error("All quantities must be positive integers");
-  }
-});
+private function validateQuantities($amazonProducts) {
+    foreach ($amazonProducts as $product) {
+        if (!is_numeric($product['quantity']) || $product['quantity'] <= 0) {
+            throw new Exception("All quantities must be positive integers");
+        }
+    }
+    return true;
+}
 ```
 
 ### 4. Inventory Validation
 
-```typescript
+```php
 // Check if sufficient inventory exists for all bundle items
-const hasSufficientInventory = bundleItems.every(item => 
-  item.availableInventory >= (item.quantity * orderQuantity)
-);
+private function validateInventory($bundleItems, $orderQuantity) {
+    foreach ($bundleItems as $item) {
+        $requiredInventory = $item['quantity'] * $orderQuantity;
+        if ($item['inventory'] < $requiredInventory) {
+            throw new Exception("Insufficient inventory for {$item['sku']}. Required: {$requiredInventory}, Available: {$item['inventory']}");
+        }
+    }
+    return true;
+}
 ```
 
 ## Error Handling
@@ -585,26 +529,63 @@ class KittingFunctionalityTest extends TestCase
     public function testCreateKitWithValidProducts()
     {
         // Test creating a kit with valid, unlinked products
+        $shopifyProduct = $this->createMockShopifyProduct();
+        $amazonProducts = $this->createMockAmazonProducts();
+        
+        $result = $this->kittingService->createKit($shopifyProduct, $amazonProducts);
+        
+        $this->assertTrue($result['success']);
+        $this->assertDatabaseHas('shopify_listing_container', [
+            'source_product_id' => $shopifyProduct['id'],
+            'bundled' => true
+        ]);
     }
     
     public function testPreventKittingLinkedProduct()
     {
         // Test that linked products cannot be kitted
+        $linkedProduct = $this->createMockLinkedProduct();
+        
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Product is already linked');
+        
+        $this->kittingService->createKit($linkedProduct, []);
     }
     
     public function testPreventLinkingKittedProduct()
     {
         // Test that kitted products cannot be linked
+        $kittedProduct = $this->createMockKittedProduct();
+        
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Product is already kitted');
+        
+        $this->linkingService->linkProduct($kittedProduct);
     }
     
     public function testProcessOrderWithKit()
     {
         // Test order processing with kitted products
+        $order = $this->createMockOrderWithKittedProduct();
+        
+        $result = $this->orderService->processOrder($order);
+        
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('fulfillment_order_id', $result);
     }
     
     public function testDeleteKit()
     {
         // Test kit deletion and cleanup
+        $kitId = $this->createMockKit();
+        
+        $result = $this->kittingService->deleteKit($kitId);
+        
+        $this->assertTrue($result['success']);
+        $this->assertDatabaseMissing('shopify_listing_container', [
+            'source_product_id' => $kitId,
+            'bundled' => true
+        ]);
     }
 }
 ```
@@ -614,9 +595,9 @@ class KittingFunctionalityTest extends TestCase
 **Test Scenarios**:
 
 1. **End-to-End Kit Creation**
-   - Create kit through UI
-   - Verify database updates
-   - Test order processing
+   - Create kit through API
+   - Verify database updates in both collections
+   - Test order processing with created kit
 
 2. **Exclusivity Validation**
    - Link a product, then try to kit it
@@ -630,15 +611,15 @@ class KittingFunctionalityTest extends TestCase
 
 ### Manual Testing Checklist
 
-- [ ] Create new kit with valid products
+- [ ] Create new kit with valid products via API
 - [ ] Try to kit already linked product (should fail)
 - [ ] Try to link already kitted product (should fail)
-- [ ] Edit existing kit quantities
+- [ ] Edit existing kit quantities via API
 - [ ] Delete kit and verify cleanup
 - [ ] Process order with kitted product
 - [ ] Test with insufficient inventory
-- [ ] Verify UI validation messages
-- [ ] Test search and pagination
+- [ ] Verify API validation responses
+- [ ] Test pagination and filtering
 - [ ] Test error handling scenarios
 
 ## Troubleshooting
@@ -647,24 +628,24 @@ class KittingFunctionalityTest extends TestCase
 
 1. **Kit Not Saving**
    - Check product exclusivity validation
-   - Verify all required fields are filled
-   - Check database connection
+   - Verify all required fields are provided
+   - Check database connection and permissions
 
 2. **Orders Not Processing**
-   - Verify bundle configuration exists
+   - Verify bundle configuration exists in shopify_listing_container
    - Check inventory levels for all bundle items
-   - Review MCF API responses
+   - Review MCF API responses and error logs
 
-3. **UI Not Updating**
-   - Check API response format
-   - Verify state management
-   - Check for JavaScript errors
+3. **Database Inconsistencies**
+   - Check for orphaned bundle references
+   - Verify shopify_listing_container and product_container sync
+   - Run database cleanup scripts
 
 ### Debug Commands
 
 ```bash
 # Check kitted products in database
-db.product_bundles.find({})
+db.shopify_listing_container.find({"bundled": true})
 
 # Check product exclusivity status
 db.shopify_listing_container.find({
@@ -674,6 +655,12 @@ db.shopify_listing_container.find({
 # Check bundle configuration
 db.product_container.find({
   "bundle": { "$exists": true }
+})
+
+# Find orphaned bundle references
+db.product_container.find({
+  "bundle": { "$ne": [] },
+  "bundle": { "$ne": null }
 })
 ```
 
@@ -685,6 +672,13 @@ $logger->debug('Kit creation attempt', [
     'shopify_product' => $shopifyProductId,
     'amazon_products' => $amazonProducts,
     'validation_result' => $validationResult
+]);
+
+// Log order processing
+$logger->info('Processing order with kitted product', [
+    'order_id' => $orderId,
+    'kitted_product' => $kittedProduct,
+    'bundle_items' => $bundleItems
 ]);
 ```
 
@@ -700,9 +694,15 @@ $logger->debug('Kit creation attempt', [
    })
    
    // Index for bundle lookups
-   db.product_bundles.createIndex({
-     "target.shop_id": 1,
-     "target.source_product_id": 1
+   db.shopify_listing_container.createIndex({
+     "shop_id": 1,
+     "bundle.source_product_id": 1
+   })
+   
+   // Index for product container queries
+   db.product_container.createIndex({
+     "shop_id": 1,
+     "bundle.shopify_product_id": 1
    })
    ```
 
@@ -713,7 +713,7 @@ $logger->debug('Kit creation attempt', [
 
 3. **API Optimization**
    - Use pagination for large product lists
-   - Implement request debouncing for search
+   - Implement request validation early
    - Batch database operations where possible
 
 ## Future Enhancements
